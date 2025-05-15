@@ -121,7 +121,7 @@ def pandas_to_latex_with_multicolumn(
     return "\n".join(latex_code)
 
 
-def to_latex(data, caption=None, label=None, index=False):
+def to_latex(data, caption=None, label=None, index=False, float_precision=2):
     """
     Convert a DataFrame to a LaTeX table with custom formatting.
     Args:
@@ -132,12 +132,12 @@ def to_latex(data, caption=None, label=None, index=False):
     df = json_to_df(data)
     print(df)
     if isinstance(df.columns, pd.MultiIndex):
-        latex_table_custom = pandas_to_latex_with_multicolumn(df, caption=caption, label=label)
+        latex_table_custom = pandas_to_latex_with_multicolumn(df, caption=caption, label=label, float_precision=float_precision)
     else:
         latex_table_custom = df.to_latex(
                 index=index,
                 header=True,
-                float_format="%.2f",
+                float_format=f"%.{float_precision}f",
                 caption=caption,
                 label=label,
                 multicolumn=True,
