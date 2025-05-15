@@ -273,7 +273,7 @@ def to_latex(data, caption=None, label=None, index=False, float_precision=2, mul
     print(df)
     print(multirow_columns)
     if isinstance(df.columns, pd.MultiIndex):
-        latex_table_custom = pandas_to_latex_with_multicolumn(df, caption=caption, label=label, float_precision=float_precision, multirow_columns=multirow_columns)
+        latex_table_custom = pandas_to_latex_with_multicolumn_and_multirow(df, caption=caption, label=label, float_precision=float_precision, multirow_columns=multirow_columns)
     else:
         latex_table_custom = df.to_latex(
                 index=index,
