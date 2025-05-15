@@ -2,28 +2,37 @@ import json
 import pandas as pd
 
 # Function to recursively extract column hierarchy and values from a nested dict
-def extract_columns_and_values(nested_dict, prefix=None):
+    # while preserving original order
+def extract_columns_and_values(nested_dict, prefix=None, path_order=None):
     if prefix is None:
         prefix = []
+    if path_order is None:
+        path_order = {}
     
     columns = []
     flat_dict = {}
     
-    for key, value in nested_dict.items():
+    # Process keys in the order they appear in the original JSON
+    for key_idx, (key, value) in enumerate(nested_dict.items()):
         current_path = prefix + [key]
+        current_path_tuple = tuple(current_path)
+        
+        # Store the original order of this path
+        if current_path_tuple not in path_order:
+            path_order[current_path_tuple] = (len(prefix), key_idx)
         
         if isinstance(value, dict):
             # If the value is a dictionary, recurse
-            sub_columns, sub_values = extract_columns_and_values(value, current_path)
+            sub_columns, sub_values, path_order = extract_columns_and_values(value, current_path, path_order)
             columns.extend(sub_columns)
             flat_dict.update(sub_values)
         else:
             # If the value is a leaf node, store the path and value
-            column_tuple = tuple(current_path)
+            column_tuple = current_path_tuple
             columns.append(column_tuple)
             flat_dict[column_tuple] = value
             
-    return columns, flat_dict
+    return columns, flat_dict, path_order
 
 def json_to_df(data, row_id_field=None):
     '''Convert a JSON file to a DataFrame, with support for nested dictionaries and multi-level headers.'''
