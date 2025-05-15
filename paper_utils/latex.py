@@ -44,6 +44,7 @@ def pandas_to_latex_with_multicolumn(
     str
         LaTeX table code
     """
+    print(multirow_columns)
     # Check if the DataFrame has MultiIndex columns
     if not isinstance(df.columns, pd.MultiIndex):
         raise ValueError("DataFrame must have MultiIndex columns")
