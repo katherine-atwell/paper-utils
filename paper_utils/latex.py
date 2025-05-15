@@ -1,6 +1,13 @@
 from .utils import *
 
-def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h"):
+def pandas_to_latex_with_multicolumn(
+    df, 
+    caption=None, 
+    label=None, 
+    position="h", 
+    float_precision=2,
+    column_format=None
+):
     """
     Convert a pandas DataFrame with MultiIndex columns to a LaTeX table with multicolumn headers.
     
@@ -14,6 +21,11 @@ def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h")
         Label for referencing the table in LaTeX
     position : str, optional
         Position specifier for the table environment (default: 'h')
+    float_precision : int, optional
+        Number of decimal places for floating-point values (default: 2)
+    column_format : str, optional
+        Custom column format for the tabular environment (e.g., '|l|c|c|').
+        If None, defaults to '|c|' for each column
     
     Returns:
     --------
@@ -34,16 +46,32 @@ def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h")
     latex_code.append(f"\\begin{{table}}[{position}]")
     latex_code.append("\\centering")
     
+    # Add caption and label if provided
+    if caption:
+        latex_code.append(f"\\caption{{{caption}}}")
+    if label:
+        latex_code.append(f"\\label{{{label}}}")
+    
     # Begin tabular environment
     # Get the correct number of columns
     n_cols = len(df.columns)
-    col_format = "|" + "c|" * n_cols
+    
+    # Use custom column format if provided, otherwise default to centered columns
+    if column_format is None:
+        # Add one extra column for row index
+        col_format = "|" + "c|" * (n_cols + 1)
+    else:
+        col_format = column_format
+        
     latex_code.append(f"\\begin{{tabular}}{{{col_format}}}")
-    latex_code.append("\\toprule")
+    latex_code.append("\\hline")
+    
+    # Add index name as the first column header if it exists
+    index_name = df.index.name if df.index.name else ""
     
     # Generate multicolumn headers for each level
     for level in range(n_levels):
-        header_row = []
+        header_row = [index_name] if level == 0 else [""]
         
         # Get unique values and their spans at this level
         level_values = df.columns.get_level_values(level)
@@ -68,24 +96,30 @@ def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h")
             header_row.append(f"\\multicolumn{{{span}}}{{|c|}}{{{value}}}")
         
         latex_code.append(" & ".join(header_row) + " \\\\")
-        latex_code.append("\\midrule")
+        latex_code.append("\\hline")
     
     # Add the data rows
-    for _, row in df.iterrows():
-        latex_code.append(" & ".join([str(x) for x in row.values]) + " \\\\")
-    latex_code.append("\\bottomrule")
+    for idx, row in df.iterrows():
+        # Format floating point values with specified precision
+        row_values = []
+        for value in row.values:
+            if isinstance(value, float):
+                # Format float with specified precision
+                row_values.append(f"{value:.{float_precision}f}")
+            else:
+                row_values.append(str(value))
         
-    # Add caption and label if provided
-    if caption:
-        latex_code.append(f"\\caption{{{caption}}}")
-    if label:
-        latex_code.append(f"\\label{{{label}}}")
+        # Add the index value as the first column
+        row_with_index = [str(idx)] + row_values
+        latex_code.append(" & ".join(row_with_index) + " \\\\")
+        latex_code.append("\\hline")
     
     # End the environments
     latex_code.append("\\end{tabular}")
     latex_code.append("\\end{table}")
     
     return "\n".join(latex_code)
+
 
 def to_latex(data, caption=None, label=None, index=False):
     """
