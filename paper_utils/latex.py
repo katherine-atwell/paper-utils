@@ -1,4 +1,4 @@
-from utils import *
+from .utils import *
 
 def to_latex(data, caption=None, label=None, index=False):
     """
