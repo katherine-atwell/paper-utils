@@ -351,7 +351,10 @@ def json_to_latex_table_with_multirow(
             latex_code.append(f"\\label{{{label}}}")
     
     # End the table environment
-    latex_code.append("\\end{table}")
+    if full_width:
+        latex_code.append("\\end{table*}")
+    else:
+        latex_code.append("\\end{table}")
     
     # Add a note about required packages
     latex_code.append("% Note: This table requires \\usepackage{booktabs} and \\usepackage{multirow} in your LaTeX preamble")
