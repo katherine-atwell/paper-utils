@@ -10,7 +10,9 @@ def json_to_latex_table_with_multirow(
     position="h",
     float_precision=4,
     column_format=None,
-    caption_position="bottom"
+    caption_position="bottom",
+    small_font=True,
+    full_width=True,
 ):
     """
     Convert a list of nested dictionaries to a LaTeX table with multicolumn headers
@@ -137,8 +139,13 @@ def json_to_latex_table_with_multirow(
     latex_code = []
     
     # Begin table environment
-    latex_code.append(f"\\begin{{table}}[{position}]")
+    if full_width:
+        latex_code.append(f"\\begin{{table*}}[{position}]")
+    else:
+        latex_code.append(f"\\begin{{table}}[{position}]")
     latex_code.append("\\centering")
+    if small_font:
+        latex_code.append("\\small")
     
     # Add caption at the top if requested
     if caption and caption_position.lower() == "top":
