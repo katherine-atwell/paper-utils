@@ -34,18 +34,12 @@ def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h")
     latex_code.append(f"\\begin{{table}}[{position}]")
     latex_code.append("\\centering")
     
-    # Add caption and label if provided
-    if caption:
-        latex_code.append(f"\\caption{{{caption}}}")
-    if label:
-        latex_code.append(f"\\label{{{label}}}")
-    
     # Begin tabular environment
     # Get the correct number of columns
     n_cols = len(df.columns)
     col_format = "|" + "c|" * n_cols
     latex_code.append(f"\\begin{{tabular}}{{{col_format}}}")
-    latex_code.append("\\hline")
+    latex_code.append("\\toprule")
     
     # Generate multicolumn headers for each level
     for level in range(n_levels):
@@ -74,12 +68,18 @@ def pandas_to_latex_with_multicolumn(df, caption=None, label=None, position="h")
             header_row.append(f"\\multicolumn{{{span}}}{{|c|}}{{{value}}}")
         
         latex_code.append(" & ".join(header_row) + " \\\\")
-        latex_code.append("\\hline")
+        latex_code.append("\\midrule")
     
     # Add the data rows
     for _, row in df.iterrows():
         latex_code.append(" & ".join([str(x) for x in row.values]) + " \\\\")
-        latex_code.append("\\hline")
+    latex_code.append("\\bottomrule")
+        
+    # Add caption and label if provided
+    if caption:
+        latex_code.append(f"\\caption{{{caption}}}")
+    if label:
+        latex_code.append(f"\\label{{{label}}}")
     
     # End the environments
     latex_code.append("\\end{tabular}")
