@@ -1,7 +1,7 @@
 import json
 import pandas as pd
 
-def json_to_df(json_file, csv_file):
+def json_to_df(json_file):
     '''Convert a JSON file to a DataFrame, with support for nested dictionaries and multi-level headers.'''
     with open(json_file, 'r') as f:
         data = json.load(f)
