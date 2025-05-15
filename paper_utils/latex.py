@@ -96,6 +96,7 @@ def to_latex(data, caption=None, label=None, index=False):
         label (str): The label for the LaTeX table.
         index (bool): Whether to include the index in the LaTeX table."""
     df = json_to_df(data)
+    print(df)
     if isinstance(df.columns, pd.MultiIndex):
         latex_table_custom = pandas_to_latex_with_multicolumn(df, caption=caption, label=label)
     else:
