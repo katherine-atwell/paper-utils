@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: paper_utils
+Version: 1.1
+Home-page: https://github.com/katherine-atwell/paper-utils
+Author: Katherine Atwell
+Author-email: atwell.ka@northeastern.edu
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: scikit-learn
+Requires-Dist: scipy
+Requires-Dist: statsmodels
+Requires-Dist: nltk
+Requires-Dist: requests
+Requires-Dist: tqdm
+Requires-Dist: pytest

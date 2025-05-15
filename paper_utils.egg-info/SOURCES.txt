@@ -1,0 +1,11 @@
+README.md
+setup.py
+paper_utils/__init__.py
+paper_utils/graphs.py
+paper_utils/latex.py
+paper_utils/statistical_tests.py
+paper_utils.egg-info/PKG-INFO
+paper_utils.egg-info/SOURCES.txt
+paper_utils.egg-info/dependency_links.txt
+paper_utils.egg-info/requires.txt
+paper_utils.egg-info/top_level.txt

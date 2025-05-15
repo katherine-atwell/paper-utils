@@ -1,6 +1,6 @@
-def to_latex(df, caption=None, label=None):
+def to_latex(df, caption=None, label=None, index=False):
     latex_table_custom = df.to_latex(
-            index=True,
+            index=index,
             header=True,
             float_format="%.2f",
             caption=caption,
