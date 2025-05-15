@@ -1,15 +1,14 @@
 from .utils import *
 
-def pandas_to_latex_with_multicolumn(
+def pandas_to_latex_with_multicolumn_and_multirow(
     df, 
     caption=None, 
     label=None, 
     position="h", 
-    float_precision=2,
+    float_precision=4,
     column_format=None,
     caption_position="bottom",
-    multirow_columns=None,
-    cascade_multirow=True  # New parameter to control cascading behavior
+    multirow_columns=None
 ):
     """
     Convert a pandas DataFrame with MultiIndex columns to a LaTeX table with multicolumn headers
@@ -26,25 +25,21 @@ def pandas_to_latex_with_multicolumn(
     position : str, optional
         Position specifier for the table environment (default: 'h')
     float_precision : int, optional
-        Number of decimal places for floating-point values (default: 2)
+        Number of decimal places for floating-point values (default: 4)
     column_format : str, optional
         Custom column format for the tabular environment (e.g., 'lccc').
         If None, defaults to 'c' for each column
     caption_position : str, optional
         Position of the caption ('top' or 'bottom', default: 'bottom')
     multirow_columns : list, optional
-        List of column names or indices where cells with identical consecutive values 
+        List of column names where cells with identical consecutive values 
         should be merged using multirow
-    cascade_multirow : bool, optional
-        If True, a column will start a new multirow if any column to its left has changed,
-        creating a cascading effect (default: True)
     
     Returns:
     --------
     str
         LaTeX table code
     """
-    print(multirow_columns)
     # Check if the DataFrame has MultiIndex columns
     if not isinstance(df.columns, pd.MultiIndex):
         raise ValueError("DataFrame must have MultiIndex columns")
@@ -116,132 +111,131 @@ def pandas_to_latex_with_multicolumn(
         if level == n_levels - 1:
             latex_code.append("\\midrule")
     
-    # Process multirow columns if provided
-    multirow_data = {}
-    multirow_column_indices = []
-    
+    # Find column indices for multirow columns
+    multirow_column_indices = {}
     if multirow_columns:
-        # Convert column names to column indices if necessary
-        for col in multirow_columns:
-            if isinstance(col, str):
-                # Find all columns where the lowest level matches this name
-                matching_cols = [i for i, c in enumerate(df.columns) 
-                                if c[-1] == col or c[0] == col]
-                multirow_column_indices.extend(matching_cols)
-            else:
-                # Assume it's already a column index
-                multirow_column_indices.append(col)
+        for col_name in multirow_columns:
+            # Look for exact matches in the last level of MultiIndex
+            for i, col in enumerate(df.columns):
+                if isinstance(col, tuple) and col[-1] == col_name:
+                    multirow_column_indices[i] = col_name
+                elif not isinstance(col, tuple) and col == col_name:
+                    multirow_column_indices[i] = col_name
+    
+    # Prepare multirow data
+    # For each specified column, find runs of identical values
+    multirow_runs = {}
+    for col_idx, col_name in multirow_column_indices.items():
+        multirow_runs[col_idx] = []
+        values = df.iloc[:, col_idx].values
         
-        # Sort column indices to ensure left-to-right processing
-        multirow_column_indices = sorted(set(multirow_column_indices))
-        
-        # For each multirow column, find runs of identical values
-        # If cascade_multirow is True, also consider changes in columns to the left
-        for col_idx in multirow_column_indices:
-            col_name = df.columns[col_idx]
-            values = df.iloc[:, col_idx].values
-            multirow_data[col_idx] = []
+        # Find runs of the same value
+        i = 0
+        while i < len(values):
+            start = i
+            value = values[i]
             
-            # Find consecutive runs of the same value, considering cascading
-            current_value = values[0]
-            current_start = 0
-            current_length = 1
-            
-            for i in range(1, len(values)):
-                # Check if this value matches the current run
-                values_match = pd.isna(values[i]) and pd.isna(current_value) or values[i] == current_value
-                
-                # Check if any column to the left has changed (for cascading)
-                left_changed = False
-                if cascade_multirow:
-                    for left_col_idx in multirow_column_indices:
-                        if left_col_idx >= col_idx:
-                            continue  # Only check columns to the left
-                            
-                        # Check if this row is the start of a new multirow in any left column
-                        for start, length, _ in multirow_data.get(left_col_idx, []):
-                            if i == start:
-                                left_changed = True
+            # Check if we need to start a new multirow because a column to the left changed
+            force_new_row = False
+            if col_idx > 0:  # Not the leftmost column
+                # Check all columns to the left that are in multirow_column_indices
+                for left_col_idx in multirow_column_indices:
+                    if left_col_idx < col_idx:  # It's to the left
+                        # If this is the start of a multirow in the left column, force a new row here too
+                        for left_start, left_run_length in multirow_runs.get(left_col_idx, []):
+                            if i == left_start:
+                                force_new_row = True
                                 break
-                        
-                        if left_changed:
-                            break
-                
-                # Start a new run if value changed or a column to the left changed
-                if not values_match or left_changed:
-                    multirow_data[col_idx].append((current_start, current_length, current_value))
-                    current_value = values[i]
-                    current_start = i
-                    current_length = 1
-                else:
-                    current_length += 1
+                    if force_new_row:
+                        break
             
-            # Add the last run
-            multirow_data[col_idx].append((current_start, current_length, current_value))
+            # Count how many consecutive rows have the same value
+            j = i + 1
+            run_length = 1
+            
+            while j < len(values) and values[j] == value and not force_new_row:
+                # Check if any column to the left is starting a new multirow at this position
+                if col_idx > 0:
+                    for left_col_idx in multirow_column_indices:
+                        if left_col_idx < col_idx:
+                            for left_start, left_run_length in multirow_runs.get(left_col_idx, []):
+                                if j == left_start:
+                                    # Stop extending this run
+                                    j -= 1
+                                    break
+                            else:
+                                continue
+                            break
+                    else:
+                        # No left column is starting a new multirow, so continue
+                        run_length += 1
+                        j += 1
+                        continue
+                    # A left column is starting a new multirow, so stop here
+                    break
+                else:
+                    # Leftmost column, just count consecutive identical values
+                    run_length += 1
+                    j += 1
+            
+            multirow_runs[col_idx].append((start, run_length))
+            i = j
     
     # Add the data rows
-    for row_idx, (idx, row) in enumerate(df.iterrows()):
-        # Format row values
+    for row_idx in range(len(df)):
         row_values = []
-        for col_idx, value in enumerate(row.values):
-            cell = ""
+        
+        # First column is the index
+        row_values.append(str(df.index[row_idx]))
+        
+        # Process each column
+        for col_idx in range(len(df.columns)):
+            value = df.iloc[row_idx, col_idx]
             
-            # Check if this cell should be part of a multirow
-            if col_idx in multirow_data:
-                is_multirow_start = False
-                multirow_length = 0
-                
+            # Format the value
+            if isinstance(value, float):
+                formatted_value = f"{value:.{float_precision}f}"
+            else:
+                formatted_value = str(value)
+            
+            # Check if this is a multirow column
+            if col_idx in multirow_runs:
                 # Check if this is the start of a multirow
-                for start, length, _ in multirow_data[col_idx]:
+                is_multirow_start = False
+                multirow_length = 1
+                
+                for start, length in multirow_runs[col_idx]:
                     if row_idx == start:
                         is_multirow_start = True
                         multirow_length = length
                         break
                 
-                # If this is the start of a multirow, create a multirow cell
                 if is_multirow_start and multirow_length > 1:
-                    # Format the value
-                    if isinstance(value, float):
-                        formatted_value = f"{value:.{float_precision}f}"
-                    else:
-                        formatted_value = str(value)
-                    
-                    cell = f"\\multirow{{{multirow_length}}}{{*}}{{{formatted_value}}}"
-                # If this is part of a multirow but not the start, leave empty
-                elif not is_multirow_start:
-                    # Check if this row is part of a multirow (not the start)
+                    # Create a multirow cell
+                    row_values.append(f"\\multirow{{{multirow_length}}}{{*}}{{{formatted_value}}}")
+                elif is_multirow_start:
+                    # Single row, just use the formatted value
+                    row_values.append(formatted_value)
+                else:
+                    # Check if this is part of a multirow that already started
                     is_in_multirow = False
-                    for start, length, _ in multirow_data[col_idx]:
+                    for start, length in multirow_runs[col_idx]:
                         if start < row_idx < start + length:
                             is_in_multirow = True
                             break
                     
                     if is_in_multirow:
-                        cell = ""
+                        # Part of a multirow that already started, leave empty
+                        row_values.append("")
                     else:
-                        # Not part of a multirow, format normally
-                        if isinstance(value, float):
-                            cell = f"{value:.{float_precision}f}"
-                        else:
-                            cell = str(value)
-                else:
-                    # Single-row cell, format normally
-                    if isinstance(value, float):
-                        cell = f"{value:.{float_precision}f}"
-                    else:
-                        cell = str(value)
+                        # Not part of a multirow, use the formatted value
+                        row_values.append(formatted_value)
             else:
-                # Regular cell, format normally
-                if isinstance(value, float):
-                    cell = f"{value:.{float_precision}f}"
-                else:
-                    cell = str(value)
-            
-            row_values.append(cell)
+                # Regular column, use the formatted value
+                row_values.append(formatted_value)
         
-        # Add the index value as the first column
-        row_with_index = [str(idx)] + row_values
-        latex_code.append(" & ".join(row_with_index) + " \\\\")
+        # Add the row to the table
+        latex_code.append(" & ".join(row_values) + " \\\\")
     
     # Add bottomrule after last data row
     latex_code.append("\\bottomrule")
