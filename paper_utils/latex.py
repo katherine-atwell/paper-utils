@@ -64,7 +64,7 @@ def pandas_to_latex_with_multicolumn(
         col_format = column_format
         
     latex_code.append(f"\\begin{{tabular}}{{{col_format}}}")
-    latex_code.append("\\hline")
+    latex_code.append("\\toprule")
     
     # Add index name as the first column header if it exists
     index_name = df.index.name if df.index.name else ""
@@ -96,7 +96,7 @@ def pandas_to_latex_with_multicolumn(
             header_row.append(f"\\multicolumn{{{span}}}{{|c|}}{{{value}}}")
         
         latex_code.append(" & ".join(header_row) + " \\\\")
-        latex_code.append("\\hline")
+        latex_code.append("\\midrule")
     
     # Add the data rows
     for idx, row in df.iterrows():
@@ -112,7 +112,7 @@ def pandas_to_latex_with_multicolumn(
         # Add the index value as the first column
         row_with_index = [str(idx)] + row_values
         latex_code.append(" & ".join(row_with_index) + " \\\\")
-        latex_code.append("\\hline")
+    latex_code.append("\\bottomrule")
     
     # End the environments
     latex_code.append("\\end{tabular}")
