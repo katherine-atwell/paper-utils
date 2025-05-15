@@ -22,7 +22,7 @@ def json_to_latex_table_with_multirow(
         List of nested dictionaries or a JSON string containing the data
     multirow_columns : list, optional
         List of column names where cells with identical consecutive values 
-        should be merged using multirow
+        should be merged using multirow. The order of this list matters for cascading behavior.
     caption : str, optional
         Caption for the LaTeX table
     label : str, optional
@@ -133,17 +133,6 @@ def json_to_latex_table_with_multirow(
             
             df.loc[i, norm_col] = value
     
-    # Find column indices for multirow columns
-    multirow_column_indices = {}
-    if multirow_columns:
-        for col_name in multirow_columns:
-            # Look for exact matches in any level of MultiIndex
-            for i, col in enumerate(df.columns):
-                for level in range(len(col)):
-                    if col[level] == col_name:
-                        multirow_column_indices[i] = col_name
-                        break
-    
     # Start building the LaTeX table
     latex_code = []
     
@@ -158,7 +147,6 @@ def json_to_latex_table_with_multirow(
             latex_code.append(f"\\label{{{label}}}")
     
     # Begin tabular environment
-    # Get the correct number of columns
     n_cols = len(df.columns)
     
     # Use custom column format if provided, otherwise default to centered columns
@@ -208,59 +196,73 @@ def json_to_latex_table_with_multirow(
         if level == max_depth - 1:
             latex_code.append("\\midrule")
     
-    # Prepare multirow data
-    # For each specified column, find runs of identical values
-    multirow_runs = {}
-    for col_idx, col_name in multirow_column_indices.items():
-        multirow_runs[col_idx] = []
-        values = df.iloc[:, col_idx].values
+    # Find the columns to use multirow on
+    multirow_cols = {}  # Map column names to their indices
+    
+    if multirow_columns:
+        # For each multirow column name
+        for col_name in multirow_columns:
+            # Find all columns that match this name at any level
+            for i, col in enumerate(df.columns):
+                if any(level == col_name for level in col):
+                    multirow_cols[col_name] = i
+                    break
+    
+    # Create multirow groups for each column
+    # This will track where multirows start and their lengths
+    multirow_groups = {}
+    
+    # Process columns in the order specified in multirow_columns to ensure proper cascading
+    for col_name in multirow_columns if multirow_columns else []:
+        if col_name not in multirow_cols:
+            continue
+            
+        col_idx = multirow_cols[col_name]
+        multirow_groups[col_name] = []
         
-        # Find runs of the same value
+        # Get column values
+        col_values = df.iloc[:, col_idx].values
+        
+        # Start by considering each value individually
+        runs = [(i, 1, col_values[i]) for i in range(len(col_values))]
+        
+        # Merge consecutive identical values, but respect changes in columns to the left
         i = 0
-        while i < len(values):
-            start = i
-            value = values[i]
+        while i < len(runs) - 1:
+            start1, length1, value1 = runs[i]
+            start2, length2, value2 = runs[i + 1]
             
-            # Check if we need to start a new multirow because a column to the left changed
-            force_new_row = False
+            # Check if values are the same
+            values_match = (pd.isna(value1) and pd.isna(value2)) or value1 == value2
             
-            # Check all columns to the left that are in multirow_column_indices
-            for left_col_idx in multirow_column_indices:
-                if left_col_idx < col_idx:  # It's to the left
-                    # If this is the start of a multirow in the left column, force a new row here too
-                    for left_start, left_run_length in multirow_runs.get(left_col_idx, []):
-                        if i == left_start:
-                            force_new_row = True
-                            break
-                if force_new_row:
+            # Check if any column to the left has a change at this position
+            can_merge = True
+            for left_col_name in multirow_columns:
+                if left_col_name == col_name:
+                    # We've reached our current column
                     break
-            
-            # Count how many consecutive rows have the same value
-            j = i + 1
-            run_length = 1
-            
-            while j < len(values) and (pd.isna(values[j]) and pd.isna(value) or values[j] == value) and not force_new_row:
-                # Check if any column to the left is starting a new multirow at this position
-                for left_col_idx in multirow_column_indices:
-                    if left_col_idx < col_idx:
-                        for left_start, left_run_length in multirow_runs.get(left_col_idx, []):
-                            if j == left_start:
-                                # Stop extending this run
-                                j -= 1
-                                force_new_row = True
-                                break
-                        if force_new_row:
+                    
+                if left_col_name in multirow_cols and left_col_name in multirow_groups:
+                    # Check if there's a multirow start at the position where we would merge
+                    left_col_runs = multirow_groups[left_col_name]
+                    for left_start, left_length, _ in left_col_runs:
+                        if start2 == left_start:
+                            # There's a new multirow starting in a column to the left
+                            can_merge = False
                             break
                 
-                if force_new_row:
+                if not can_merge:
                     break
-                
-                # No left column is starting a new multirow, so continue
-                run_length += 1
-                j += 1
             
-            multirow_runs[col_idx].append((start, run_length))
-            i = start + run_length
+            # If we can merge these runs, do so
+            if values_match and can_merge:
+                runs[i] = (start1, length1 + length2, value1)
+                runs.pop(i + 1)
+            else:
+                i += 1
+        
+        # Store the final runs
+        multirow_groups[col_name] = runs
     
     # Add the data rows
     for row_idx in range(len(df)):
@@ -281,28 +283,37 @@ def json_to_latex_table_with_multirow(
             else:
                 formatted_value = str(value)
             
-            # Check if this is a multirow column
-            if col_idx in multirow_runs:
-                # Check if this is the start of a multirow
-                is_multirow_start = False
+            # Look for this column in our multirow groups
+            is_multirow_col = False
+            col_name = None
+            
+            for name, idx in multirow_cols.items():
+                if idx == col_idx:
+                    is_multirow_col = True
+                    col_name = name
+                    break
+            
+            if is_multirow_col and col_name in multirow_groups:
+                # Check if this row is the start of a multirow
+                is_start_of_multirow = False
                 multirow_length = 1
                 
-                for start, length in multirow_runs[col_idx]:
+                for start, length, _ in multirow_groups[col_name]:
                     if row_idx == start:
-                        is_multirow_start = True
+                        is_start_of_multirow = True
                         multirow_length = length
                         break
                 
-                if is_multirow_start and multirow_length > 1:
+                if is_start_of_multirow and multirow_length > 1:
                     # Create a multirow cell
                     row_values.append(f"\\multirow{{{multirow_length}}}{{*}}{{{formatted_value}}}")
-                elif is_multirow_start:
+                elif is_start_of_multirow:
                     # Single row, just use the formatted value
                     row_values.append(formatted_value)
                 else:
                     # Check if this is part of a multirow that already started
                     is_in_multirow = False
-                    for start, length in multirow_runs[col_idx]:
+                    for start, length, _ in multirow_groups[col_name]:
                         if start < row_idx < start + length:
                             is_in_multirow = True
                             break
