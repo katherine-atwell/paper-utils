@@ -8,7 +8,8 @@ def pandas_to_latex_with_multicolumn(
     float_precision=2,
     column_format=None,
     caption_position="bottom",
-    multirow_columns=None
+    multirow_columns=None,
+    cascade_multirow=True  # New parameter to control cascading behavior
 ):
     """
     Convert a pandas DataFrame with MultiIndex columns to a LaTeX table with multicolumn headers
@@ -34,6 +35,9 @@ def pandas_to_latex_with_multicolumn(
     multirow_columns : list, optional
         List of column names or indices where cells with identical consecutive values 
         should be merged using multirow
+    cascade_multirow : bool, optional
+        If True, a column will start a new multirow if any column to its left has changed,
+        creating a cascading effect (default: True)
     
     Returns:
     --------
@@ -127,25 +131,49 @@ def pandas_to_latex_with_multicolumn(
                 # Assume it's already a column index
                 multirow_column_indices.append(col)
         
+        # Sort column indices to ensure left-to-right processing
+        multirow_column_indices = sorted(set(multirow_column_indices))
+        
         # For each multirow column, find runs of identical values
+        # If cascade_multirow is True, also consider changes in columns to the left
         for col_idx in multirow_column_indices:
             col_name = df.columns[col_idx]
             values = df.iloc[:, col_idx].values
             multirow_data[col_idx] = []
             
-            # Find consecutive runs of the same value
+            # Find consecutive runs of the same value, considering cascading
             current_value = values[0]
             current_start = 0
             current_length = 1
             
             for i in range(1, len(values)):
-                if pd.isna(values[i]) and pd.isna(current_value) or values[i] == current_value:
-                    current_length += 1
-                else:
+                # Check if this value matches the current run
+                values_match = pd.isna(values[i]) and pd.isna(current_value) or values[i] == current_value
+                
+                # Check if any column to the left has changed (for cascading)
+                left_changed = False
+                if cascade_multirow:
+                    for left_col_idx in multirow_column_indices:
+                        if left_col_idx >= col_idx:
+                            continue  # Only check columns to the left
+                            
+                        # Check if this row is the start of a new multirow in any left column
+                        for start, length, _ in multirow_data.get(left_col_idx, []):
+                            if i == start:
+                                left_changed = True
+                                break
+                        
+                        if left_changed:
+                            break
+                
+                # Start a new run if value changed or a column to the left changed
+                if not values_match or left_changed:
                     multirow_data[col_idx].append((current_start, current_length, current_value))
                     current_value = values[i]
                     current_start = i
                     current_length = 1
+                else:
+                    current_length += 1
             
             # Add the last run
             multirow_data[col_idx].append((current_start, current_length, current_value))
